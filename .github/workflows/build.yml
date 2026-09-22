@@ -35,13 +35,20 @@ jobs:
       - name: Package
         run: ./gradlew shadowJar --no-daemon
 
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcyas-idconverter-jar
+          path: build/libs/MCYAS-IDConverter-*.jar
+          if-no-files-found: error
+
       - name: Javadoc
         run: ./gradlew javadoc --no-daemon
 
       - name: Upload Javadoc artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mooc-javadoc
+          name: mcyas-javadoc
           path: build/docs/javadoc
           if-no-files-found: error
 
@@ -127,6 +134,55 @@ jobs:
           files: ${{ steps.pre.outputs.jar_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  smoke-test:
+    name: Launch on JDK ${{ matrix.jdk }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        jdk: [ "17", "21", "25" ]
+    steps:
+      - uses: actions/setup-java@v4
+        id: runtime
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcyas-idconverter-jar
+          path: dist
+
+      # Compiling and unit tests both pass for artifacts that cannot launch:
+      # Main.main used to be package-private, which JDK 25's relaxed launcher
+      # accepted but JDK 17's did not.
+      - name: Launch artifact
+        run: |
+          set -euo pipefail
+          JAR="$(find dist -maxdepth 1 -type f -name 'MCYAS-IDConverter-*.jar' ! -name '*-thin.jar' || true)"
+          if [ -z "${JAR}" ]; then
+            echo "::error::No jar found in the downloaded artifact"
+            ls -la dist
+            exit 1
+          fi
+
+          JAVA_BIN="${{ steps.runtime.outputs.java-home }}/bin/java"
+          echo "Launching ${JAR}"
+          "${JAVA_BIN}" -version
+
+          if ! OUTPUT="$("${JAVA_BIN}" -jar "${JAR}" -v 2>&1)"; then
+            echo "::error::Artifact failed to launch on JDK ${{ matrix.jdk }}"
+            echo "${OUTPUT}"
+            exit 1
+          fi
+
+          echo "${OUTPUT}"
+          if ! printf '%s' "${OUTPUT}" | grep -q 'MCYAS-IDConverter v'; then
+            echo "::error::Artifact did not print its version banner on JDK ${{ matrix.jdk }}"
+            exit 1
+          fi
 
   deploy-pages:
     name: Deploy Pages
