@@ -1,5 +1,6 @@
 package me.pauleff.converter.plugins;
 
+import me.pauleff.common.ExitCode;
 import me.pauleff.converter.api.DefaultPlugin;
 import me.pauleff.converter.api.PluginContext;
 import me.pauleff.converter.api.PluginMetadata;
@@ -71,7 +72,7 @@ public class DetectSaveFileFormat implements DefaultPlugin
         if (ctx.saveFileFormat() == MC_REGION)
         {
             logger().info("You are probably trying to convert a Minecraft older then Minecraft 1.7.6 (2014). Switching between online and offline should work without any conversion needed!");
-            System.exit(0);
+            System.exit(ExitCode.NOTHING_TO_CONVERT);
         }
     }
 

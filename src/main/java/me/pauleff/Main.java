@@ -1,8 +1,10 @@
 package me.pauleff;
 
+import me.pauleff.common.ExitCode;
 import me.pauleff.common.argparse.ArgumentParser;
 import me.pauleff.common.argparse.ParseResult;
 import me.pauleff.common.argparse.ParsedArguments;
+import me.pauleff.common.exceptions.MappingException;
 import me.pauleff.common.exceptions.PathNotValidException;
 import me.pauleff.common.exceptions.UnknownWorldFolderStructureException;
 import me.pauleff.converter.PluginOrchestrator;
@@ -25,8 +27,9 @@ public final class Main
      * Parses command-line arguments and executes the requested conversion operations.
      * <p>
      * Exits early when {@link ParseResult#shouldExit()} is {@code true}. Requires at least
-     * one of conversion, player-data copy, or server-properties changes. On path or world-folder
-     * structure errors, logs the failure, prints help, and exits with code {@code 1}.
+     * one of conversion, player-data copy, or server-properties changes. On mapping errors it
+     * logs the failure and exits with {@link ExitCode#INVALID_MAPPING}; on path or world-folder
+     * structure errors it logs the failure, prints help, and exits with {@link ExitCode#USAGE}.
      *
      * @param args the raw command-line arguments
      */
@@ -46,29 +49,33 @@ public final class Main
                 && !parsedArgs.shouldCopyPlayerData()
                 && parsedArgs.serverPropertiesChanges().isEmpty())
         {
-            fail(argumentParser, "No action specified.");
+            fail(argumentParser, "No action specified.", ExitCode.USAGE);
         }
 
         try
         {
             PluginContext ctx = PluginContext.from(parsedArgs);
             new PluginOrchestrator().run(ctx);
+        } catch (MappingException e)
+        {
+            fail(argumentParser, e.getMessage(), ExitCode.INVALID_MAPPING);
         } catch (PathNotValidException | UnknownWorldFolderStructureException e)
         {
-            fail(argumentParser, e.getMessage());
+            fail(argumentParser, e.getMessage(), ExitCode.USAGE);
         }
     }
 
     /**
-     * Logs an error, prints CLI help, and terminates the process with exit code {@code 1}.
+     * Logs an error, prints CLI help, and terminates the process with the given exit code.
      *
      * @param argumentParser the parser used to print help
      * @param message        the error message to log
+     * @param exitCode       the process exit code to terminate with
      */
-    private static void fail(ArgumentParser argumentParser, String message)
+    private static void fail(ArgumentParser argumentParser, String message, int exitCode)
     {
         LOGGER.error(message);
         argumentParser.printHelp();
-        exit(1);
+        exit(exitCode);
     }
 }

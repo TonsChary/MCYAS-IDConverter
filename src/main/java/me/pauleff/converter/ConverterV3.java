@@ -18,7 +18,6 @@ import java.util.UUID;
 import static java.nio.file.Files.isRegularFile;
 import static java.util.Objects.requireNonNull;
 import static me.pauleff.common.handlers.uuid.MinecraftUuids.*;
-import static me.pauleff.common.handlers.uuid.OnlineProfileLookup.onlineUuidToName;
 
 /**
  * Converts Minecraft world and player files between online and offline UUID modes.
@@ -89,7 +88,7 @@ public final class ConverterV3
                     UUIDType sourceUuidType = typeOf(sourceUuid);
                     if (validConversionDirection(sourceUuidType))
                     {
-                        UUID targetUuid = resolveTargetUuid(sourceUuid);
+                        UUID targetUuid = ctx.getTargetUuid(sourceUuid);
                         if (targetUuid == null)
                         {
                             LOGGER.warn("No mapping available for UUID {} in file {}. Skipping rename.",
@@ -131,52 +130,6 @@ public final class ConverterV3
     {
         return (ctx.conversionTarget() == ConversionTarget.ONLINE && sourceUuidType == UUIDType.OFFLINE)
                 || (ctx.conversionTarget() == ConversionTarget.OFFLINE && sourceUuidType == UUIDType.ONLINE);
-    }
-
-    /**
-     * Resolves the remapped UUID for a source UUID, consulting and possibly extending the context map.
-     * <p>
-     * Returns an existing mapping when present. For online conversion with no mapping, returns
-     * {@code null} (offline UUIDs cannot be inferred without a name source such as usercache).
-     * For offline conversion, looks up the online name and derives an offline UUID, storing the
-     * new mapping on the context.
-     *
-     * @param sourceUuid the UUID found in a file name
-     * @return the target UUID, or {@code null} if no mapping can be determined
-     * @throws IOException if an online name lookup fails
-     */
-    private UUID resolveTargetUuid(UUID sourceUuid) throws IOException
-    {
-        UUID targetUuid = ctx.getTargetUuid(sourceUuid);
-        if (targetUuid != null)
-        {
-            return targetUuid;
-        }
-
-        /*
-         * Short explanation:
-         * When converting from online to offline, there should be no interference.
-         * But when converting from offline to online we encounter the problem, that there is no way to infer the online username/UUID from an offline UUID.
-         * The PrefetchUsercache plugin iterates over usercache.json during MOOC setup, being the for now only file which maps offline name to offline UUID.
-         * Therefor being the only true source for converting offline to online UUIDs.
-         *
-         * NOTE: If this is not true, feel free to contribute!
-         */
-        if (ctx.conversionTarget() == ConversionTarget.ONLINE)
-        {
-            return null;
-        }
-
-        String playerName = onlineUuidToName(sourceUuid);
-        if (playerName == null || playerName.isBlank())
-        {
-            return null;
-        }
-
-        UUID offlineUuid = offlineFromName(playerName);
-        ctx.putUuidMapping(sourceUuid, offlineUuid);
-        LOGGER.debug("Added new UUID mapping for {}: {} -> {}", playerName, sourceUuid, offlineUuid);
-        return offlineUuid;
     }
 
     /**

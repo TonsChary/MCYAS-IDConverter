@@ -10,12 +10,14 @@ import java.util.Optional;
  * @param serverPath                the path to the server folder, if specified
  * @param toOnlineMode              {@code true} for online conversion, {@code false} for offline,
  *                                  or empty when no conversion was requested
+ * @param uuidMapPath               the path to the mapping file exported by the auth server, if specified
  * @param copyPlayerDataSourceWorld the source world folder name to copy player data from, if requested
  * @param serverPropertiesChanges   key/value pairs to apply to {@code server.properties}; may be empty
  */
 public record ParsedArguments(
         Optional<Path> serverPath,
         Optional<Boolean> toOnlineMode,
+        Optional<Path> uuidMapPath,
         Optional<String> copyPlayerDataSourceWorld,
         Map<String, String> serverPropertiesChanges)
 {

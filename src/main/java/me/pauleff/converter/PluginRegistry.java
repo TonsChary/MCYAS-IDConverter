@@ -29,8 +29,7 @@ public record PluginRegistry(
     private static final List<MOOCPlugin> DISCOVERY_PLUGINS = List.of(
             new DetectServerType(),
             new DetectWorldFolderStructure(),
-            new DetectSaveFileFormat(),
-            new PrefetchUsercache()
+            new DetectSaveFileFormat()
     );
 
     private static final List<MOOCPlugin> MISC_PLUGINS = List.of(

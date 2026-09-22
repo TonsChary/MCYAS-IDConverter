@@ -42,26 +42,12 @@ public final class CliOptions
         properties.setDescription("Edit values in server.properties; (i.e., -properties key1=value1 key2=value2)");
         options.addOption(properties);
 
-        Option customApiBaseUrl = Option.builder("customApiBaseUrl")
-                .desc("Custom API base URL (domain); Mojang paths + name/UUID are appended (e.g. \"https://myskinserver.com\")")
+        Option uuidMap = Option.builder("uuidMap")
+                .desc("Path to the mapping.json exported by your auth server (required for -offline/-online)")
                 .hasArg()
-                .argName("url")
+                .argName("file")
                 .build();
-        options.addOption(customApiBaseUrl);
-
-        Option retrieveUUIDUrl = Option.builder("retrieveUUIDUrl")
-                .desc("Full name to UUID endpoint URL (domain + path). Only the player name is appended. Overrides -customApiBaseUrl")
-                .hasArg()
-                .argName("url")
-                .build();
-        options.addOption(retrieveUUIDUrl);
-
-        Option retrieveNameUrl = Option.builder("retrieveNameUrl")
-                .desc("Full UUID to name endpoint URL (domain + path). Only the UUID is appended. Overrides -customApiBaseUrl")
-                .hasArg()
-                .argName("url")
-                .build();
-        options.addOption(retrieveNameUrl);
+        options.addOption(uuidMap);
 
         return options;
     }

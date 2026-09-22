@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import static me.pauleff.common.handlers.uuid.MinecraftUuids.*;
-import static me.pauleff.common.handlers.uuid.OnlineProfileLookup.onlineUuidToName;
 
 /**
  * Converts FTB Quests progress SNBT files between online and offline player UUIDs.
@@ -155,7 +154,7 @@ public class ConvertFtbQuests implements MultiServerPlugin
 
         try
         {
-            UUID targetUuid = resolveTargetUuid(ctx, sourceUuid);
+            UUID targetUuid = ctx.getTargetUuid(sourceUuid);
             if (targetUuid == null)
             {
                 logger().warn("No mapping available for UUID {} in {}. Skipping.", sourceUuid, path.normalize());
@@ -239,43 +238,5 @@ public class ConvertFtbQuests implements MultiServerPlugin
             updated = updated.replace(dashless(from), dashless(to));
         }
         return updated;
-    }
-
-    /**
-     * Resolves the remapped UUID for a source UUID, consulting and possibly extending the context map.
-     * <p>
-     * Existing mappings win. Online conversion without a mapping returns {@code null}. Offline
-     * conversion may look up the online name and derive an offline UUID, storing the new mapping
-     * on the context.
-     *
-     * @param ctx        the shared conversion context
-     * @param sourceUuid the UUID found in the progress file name
-     * @return the target UUID, or {@code null} if no mapping can be determined
-     * @throws IOException if an online name lookup fails
-     * @see ConverterV3
-     */
-    private UUID resolveTargetUuid(PluginContext ctx, UUID sourceUuid) throws IOException
-    {
-        UUID targetUuid = ctx.getTargetUuid(sourceUuid);
-        if (targetUuid != null)
-        {
-            return targetUuid;
-        }
-
-        if (ctx.conversionTarget() == ConversionTarget.ONLINE)
-        {
-            return null;
-        }
-
-        String playerName = onlineUuidToName(sourceUuid);
-        if (playerName == null || playerName.isBlank())
-        {
-            return null;
-        }
-
-        UUID offlineUuid = offlineFromName(playerName);
-        ctx.putUuidMapping(sourceUuid, offlineUuid);
-        logger().debug("Added new UUID mapping for {}: {} -> {}", playerName, sourceUuid, offlineUuid);
-        return offlineUuid;
     }
 }

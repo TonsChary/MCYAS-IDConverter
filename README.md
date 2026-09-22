@@ -40,16 +40,10 @@ java -jar MCYAS-IDConverter.jar <arguments>
 
 - `-offline` to convert your server to offline files
 - `-online` to convert your server to online files
+- `-uuidMap "path/to/mapping.json"` the mapping file exported by your auth server; **required** for `-offline` and `-online`
 - If necessary `-p "path/to/server/folder/"` (if the jar is not in the server's main folder)
 - `-copy` to copy player data from one world to another
 - `-properties` to directly edit values in server.properties
-- `-customApiBaseUrl "https://myskinserver.com"` custom API base URL for online UUID/name lookups (Mojang API path
-  schema was to be used [read more here](https://minecraft.wiki/w/Mojang_API)). Useful for custom auth/skin servers
-  like [Blessing Skin](https://github.com/bs-community)
-- `-retrieveUUIDUrl "https://myskinserver.com/api/.../"` full name to UUID endpoint URL (domain + path). Only the player
-  name is appended. Overrides `-customApiBaseUrl` for this lookup
-- `-retrieveNameUrl "https://myskinserver.com/api/.../"` full UUID to name endpoint URL (domain + path). Only the UUID
-  is appended. Overrides `-customApiBaseUrl` for this lookup
 - `-verbose` for verbose console output (for debugging and error reporting)
 - `-v` print MCYAS-IDConverter version
 - `-h` for help

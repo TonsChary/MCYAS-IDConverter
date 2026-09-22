@@ -1,10 +1,10 @@
 package me.pauleff.converter;
 
+import me.pauleff.common.ExitCode;
 import me.pauleff.common.exceptions.UnknownWorldFolderStructureException;
 import me.pauleff.converter.api.MOOCPlugin;
 import me.pauleff.converter.api.PluginContext;
 import me.pauleff.converter.api.PluginMetadata;
-import me.pauleff.converter.plugins.UpdateDefaultServerFiles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,7 +91,7 @@ public final class PluginOrchestrator
             if (ctx.conversionTarget() == ConversionTarget.ONLINE && ctx.uuidMap().isEmpty())
             {
                 LOGGER.error("No profiles resolved for online conversion. Aborting...");
-                return;
+                System.exit(ExitCode.NO_PROFILES);
             }
             if (!confirmConversion(ctx))
             {
@@ -117,17 +117,7 @@ public final class PluginOrchestrator
             LOGGER.warn("No plugin list found for server type {}", serverType.name());
         }
 
-        int uuidMapSizeBeforeConversion = ctx.uuidMap().size();
         runPhase(ctx, registry.conversionPlugins());
-        /*
-         * If conversion discovered additional UUID mappings (e.g. empty usercache.json),
-         * re-run default server file updates with the newly found mappings.
-         */
-        if (ctx.uuidMap().size() > uuidMapSizeBeforeConversion)
-        {
-            LOGGER.info("The number of detected profiles has increased during the conversion run. Reapplying to the server's default files.");
-            runPlugin(ctx, new UpdateDefaultServerFiles());
-        }
     }
 
     /**

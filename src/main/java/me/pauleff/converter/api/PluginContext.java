@@ -1,18 +1,20 @@
 package me.pauleff.converter.api;
 
 import me.pauleff.common.argparse.ParsedArguments;
+import me.pauleff.common.exceptions.MappingException;
 import me.pauleff.common.exceptions.PathNotValidException;
 import me.pauleff.common.handlers.files.ServerPropertiesFile;
 import me.pauleff.converter.ConversionTarget;
 import me.pauleff.converter.SaveFileFormat;
 import me.pauleff.converter.ServerType;
 import me.pauleff.converter.WorldFolderStructure;
+import me.pauleff.converter.mapping.MappingTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -38,26 +40,28 @@ public final class PluginContext
     private SaveFileFormat saveFileFormat;
 
     /**
-     * Creates a context with the given folders, conversion target, and parsed arguments.
+     * Creates a context with the given folders, conversion target, parsed arguments, and UUID map.
      * <p>
-     * Detection fields start unset and the UUID map is empty.
+     * Detection fields start unset.
      *
      * @param serverFolder     the absolute, normalized server root folder
      * @param worldFolder      the world folder resolved from {@code server.properties}
      * @param conversionTarget whether to convert toward online or offline mode
      * @param parsedArguments  the CLI arguments for this run
+     * @param uuidMap          the source-to-target UUID mappings loaded from the mapping file
      */
     private PluginContext(
             Path serverFolder,
             Path worldFolder,
             ConversionTarget conversionTarget,
-            ParsedArguments parsedArguments)
+            ParsedArguments parsedArguments,
+            Map<UUID, UUID> uuidMap)
     {
         this.serverFolder = Objects.requireNonNull(serverFolder, "Server folder path can't be null.");
         this.worldFolder = Objects.requireNonNull(worldFolder, "World folder path can't be null.");
         this.conversionTarget = Objects.requireNonNull(conversionTarget, "Target to convert to must be set.");
         this.parsedArguments = Objects.requireNonNull(parsedArguments, "Parsed arguments can't be null.");
-        this.uuidMap = new HashMap<>();
+        this.uuidMap = Map.copyOf(uuidMap);
     }
 
     /**
@@ -65,14 +69,17 @@ public final class PluginContext
      * <p>
      * Resolves the server folder (defaulting to the current directory), requires
      * {@code server.properties}, derives the world folder from {@code level-name},
-     * and sets the conversion target from the online/offline flags (offline when absent).
+     * sets the conversion target from the online/offline flags (offline when absent),
+     * and loads the mapping file that drives a conversion run.
      *
      * @param parsedArgs the parsed CLI arguments
      * @return a new context ready for plugin execution
      * @throws PathNotValidException if the server folder, {@code server.properties}, or world folder is missing
+     * @throws MappingException      if a conversion run has no usable mapping file, or the mapping
+     *                               was exported for the opposite direction
      * @throws NullPointerException  if {@code parsedArgs} is {@code null}
      */
-    public static PluginContext from(ParsedArguments parsedArgs) throws PathNotValidException
+    public static PluginContext from(ParsedArguments parsedArgs) throws PathNotValidException, MappingException
     {
         Objects.requireNonNull(parsedArgs, "Parsed arguments can't be null.");
 
@@ -106,21 +113,63 @@ public final class PluginContext
                 .map(online -> online ? ConversionTarget.ONLINE : ConversionTarget.OFFLINE)
                 .orElse(ConversionTarget.OFFLINE);
 
-        return new PluginContext(serverFolder, worldFolder, conversionTarget, parsedArgs);
+        return new PluginContext(serverFolder, worldFolder, conversionTarget, parsedArgs,
+                loadUuidMap(parsedArgs, conversionTarget));
     }
 
     /**
-     * Records a UUID remapping from an original player UUID to its converted counterpart.
+     * Loads the mapping table that drives a conversion run and checks its declared direction.
+     * <p>
+     * Returns an empty map for runs that are not conversions, such as {@code -copy} or
+     * {@code -properties} only.
      *
-     * @param from the original UUID
-     * @param to   the remapped UUID
-     * @throws NullPointerException if {@code from} or {@code to} is {@code null}
+     * @param parsedArgs       the parsed CLI arguments
+     * @param conversionTarget the direction this run converts toward
+     * @return the source-to-target UUID map, or an empty map when no conversion was requested
+     * @throws MappingException if no mapping file was given, it cannot be read, it is invalid,
+     *                          or it was exported for the opposite direction
      */
-    public void putUuidMapping(UUID from, UUID to)
+    private static Map<UUID, UUID> loadUuidMap(ParsedArguments parsedArgs, ConversionTarget conversionTarget)
+            throws MappingException
     {
-        uuidMap.put(
-                Objects.requireNonNull(from, "Original UUID to put into map can't be null."),
-                Objects.requireNonNull(to, "New UUID to put into map can't be null."));
+        if (!parsedArgs.isConversionOperation())
+        {
+            return Map.of();
+        }
+
+        Path mappingFile = parsedArgs.uuidMapPath().orElseThrow(() -> new MappingException(
+                "A conversion requires -uuidMap pointing at the mapping.json exported by your auth server."));
+
+        MappingTable table;
+        try
+        {
+            table = MappingTable.load(mappingFile);
+        } catch (IOException e)
+        {
+            throw new MappingException("Could not read the mapping file " + mappingFile, e);
+        }
+
+        if (table.direction() != conversionTarget)
+        {
+            throw new MappingException(
+                    ("mapping.json was exported for the %s direction, but this run uses %s. "
+                     + "Regenerate the mapping for this direction, or pass the matching flag.")
+                            .formatted(flagOf(table.direction()), flagOf(conversionTarget)));
+        }
+
+        LOGGER.info("Loaded {} UUID mapping(s) from {}", table.uuidMap().size(), mappingFile);
+        return table.uuidMap();
+    }
+
+    /**
+     * Returns the command-line flag that selects the given conversion direction.
+     *
+     * @param target the conversion direction
+     * @return {@code -online} or {@code -offline}
+     */
+    private static String flagOf(ConversionTarget target)
+    {
+        return target == ConversionTarget.ONLINE ? "-online" : "-offline";
     }
 
     /**
@@ -196,11 +245,9 @@ public final class PluginContext
     }
 
     /**
-     * Returns the live map of original-to-remapped player UUIDs.
-     * <p>
-     * Mutations via {@link #putUuidMapping(UUID, UUID)} are visible through this map.
+     * Returns the original-to-remapped player UUID map loaded from the mapping file.
      *
-     * @return the UUID remapping map; never {@code null}
+     * @return an unmodifiable UUID remapping map; never {@code null}
      */
     public Map<UUID, UUID> uuidMap()
     {
