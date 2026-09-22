@@ -1,8 +1,8 @@
-# MinecraftOfflineOnlineConverter v26.1
+# MCYAS-IDConverter v26.1
 <p align="center">
   <img src="https://img.shields.io/badge/version-26.1-blue" alt="App version 26.1">
   <img src="https://img.shields.io/badge/minecraft-26.2-green" alt="Minecraft version 26.2">
-  <img src="https://img.shields.io/badge/java-26-red" alt="Java version 26">
+  <img src="https://img.shields.io/badge/java-17-red" alt="Java version 17">
 </p>
 
 Ever started playing on one of your Minecraft servers and a few hours later that one friend that didn't buy the game wants to join?
@@ -30,12 +30,12 @@ If you find any bugs or edge cases, please report them to this repo!
 
 First look at [Disclaimer](#disclaimer) and make sure you understand the "risks" of using this tool.
 
-- Download the [most current jar](https://github.com/paul-eff/MinecraftOfflineOnlineConverter/releases/latest)
+- Download the [most current jar](https://github.com/TonsChary/MCYAS-IDConverter/releases/latest)
 - Place it in your server's main folder (not mandatory, just makes things easier)
 - Execute the jar through your terminal with the following command:
 
 ```bash
-java -jar MinecraftOfflineOnlineConverter.jar <arguments>
+java -jar MCYAS-IDConverter.jar <arguments>
 ```
 
 - `-offline` to convert your server to offline files
@@ -51,7 +51,7 @@ java -jar MinecraftOfflineOnlineConverter.jar <arguments>
 - `-retrieveNameUrl "https://myskinserver.com/api/.../"` full UUID to name endpoint URL (domain + path). Only the UUID
   is appended. Overrides `-customApiBaseUrl` for this lookup
 - `-verbose` for verbose console output (for debugging and error reporting)
-- `-v` print MOOC version
+- `-v` print MCYAS-IDConverter version
 - `-h` for help
 
 ## Known Issues
@@ -71,12 +71,12 @@ Executing the command
 
 builds a runnable JAR with all dependencies.
 
+Building requires a JDK 26 toolchain, but the produced JAR targets Java 17, so it runs on the JDK shipped with Minecraft 1.18+ servers.
+
 # Disclaimer
 
 Please always make a backup of your game files before using this tool.
 Whilst it was thoroughly tested on my own servers, there is always the chance that a bug might occur!
-
-If you need this application for a lower Minecraft and/or Java version, please leave me a message or issue :)!
 
 # License
 

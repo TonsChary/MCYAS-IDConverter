@@ -72,7 +72,7 @@ public class PrefetchUsercache implements DefaultPlugin
         {
             logger().info("""
                     You are probably trying to convert a Minecraft older then Minecraft 1.7.6 (2014). Switching between online and offline should work without any conversion needed!
-                    If this is a mistake, please report this case to the MOOC repository.""");
+                    If this is a mistake, please report this case to the MCYAS-IDConverter repository.""");
             System.exit(0);
         }
 

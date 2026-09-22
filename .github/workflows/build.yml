@@ -77,7 +77,7 @@ jobs:
             BLURB="Branch build; overwritten on each green push. Removed when the branch is merged/closed or deleted."
           fi
 
-          mapfile -t JARS < <(find build/libs -maxdepth 1 -type f -name 'MinecraftOfflineOnlineConverter-*.jar' ! -name '*-thin.jar' | sort)
+          mapfile -t JARS < <(find build/libs -maxdepth 1 -type f -name 'MCYAS-IDConverter-*.jar' ! -name '*-thin.jar' | sort)
           if [ "${#JARS[@]}" -ne 1 ]; then
             echo "Expected exactly one shadow JAR, found ${#JARS[@]}"
             ls -la build/libs || true
@@ -85,7 +85,7 @@ jobs:
           fi
 
           mkdir -p dist
-          JAR_NAME="MinecraftOfflineOnlineConverter-${SHORT_SHA}.jar"
+          JAR_NAME="MCYAS-IDConverter-${SHORT_SHA}.jar"
           mv "${JARS[0]}" "dist/${JAR_NAME}"
 
           # Recreate the release each run so the tag (and auto-generated source

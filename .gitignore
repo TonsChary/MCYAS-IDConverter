@@ -234,3 +234,6 @@ gradle-app.setting
 *.hprof
 
 # End of https://www.toptal.com/developers/gitignore/api/jetbrains+all,windows,macos,linux,java,maven,gradle
+
+# Codegraph local index (tool-specific, not part of the project)
+.codegraph/

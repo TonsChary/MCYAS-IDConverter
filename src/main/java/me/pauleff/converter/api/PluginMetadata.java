@@ -73,6 +73,6 @@ public record PluginMetadata(String id, String displayName, String description, 
      */
     private static int clampPriority(int p)
     {
-        return Math.clamp(p, MIN_PRIORITY, MAX_PRIORITY);
+        return Math.max(MIN_PRIORITY, Math.min(MAX_PRIORITY, p));
     }
 }

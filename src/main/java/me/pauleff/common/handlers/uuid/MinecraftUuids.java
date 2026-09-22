@@ -111,7 +111,7 @@ public final class MinecraftUuids
         try
         {
             return typeOf(UUID.fromString(uuidString)) != UUIDType.INVALID;
-        } catch (IllegalArgumentException _)
+        } catch (IllegalArgumentException ignored)
         {
             return false;
         }

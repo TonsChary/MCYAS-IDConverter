@@ -1,1 +1,1 @@
-rootProject.name = "MinecraftOfflineOnlineConverter"
+rootProject.name = "MCYAS-IDConverter"

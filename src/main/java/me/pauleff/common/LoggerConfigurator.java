@@ -24,7 +24,7 @@ import java.nio.file.Path;
 public final class LoggerConfigurator
 {
     private static final Path LOG_DIR = Path.of("mooc_logs");
-    private static final String LOG_FILE_PATTERN = LOG_DIR.getFileName() + "/MinecraftOfflineOnlineConverter-%d{yyyy-MM-dd}.log";
+    private static final String LOG_FILE_PATTERN = LOG_DIR.getFileName() + "/MCYAS-IDConverter-%d{yyyy-MM-dd}.log";
     private static final String LINE_PATTERN = "[%d{yyyy-MM-dd HH:mm:ss}][%-5level][%logger{36}] %msg%n";
     private static final String CONSOLE_PATTERN_VERBOSE = "[%d{HH:mm:ss}][%-5level][%logger{0}] %msg%n";
     private static final String CONSOLE_PATTERN_DEFAULT = "[%d{HH:mm:ss}][%-5level] %msg%n";

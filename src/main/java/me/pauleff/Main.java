@@ -18,7 +18,7 @@ import static java.lang.System.exit;
 public final class Main
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
-    private static final String APP_NAME = "MinecraftOfflineOnlineConverter";
+    private static final String APP_NAME = "MCYAS-IDConverter";
     private static final String VERSION = "26.1";
 
     /**
@@ -30,7 +30,7 @@ public final class Main
      *
      * @param args the raw command-line arguments
      */
-    static void main(String[] args)
+    public static void main(String[] args)
     {
         ArgumentParser argumentParser = new ArgumentParser(APP_NAME, VERSION);
         ParseResult parseResult = argumentParser.parse(args);

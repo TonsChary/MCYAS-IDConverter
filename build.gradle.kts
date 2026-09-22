@@ -38,6 +38,9 @@ application {
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
+    // Build with the current toolchain but target Java 17 so the artifact runs on
+    // the JDK shipped with 1.18+ servers instead of requiring Java 26.
+    options.release.set(17)
 }
 
 tasks.withType<AbstractArchiveTask>().configureEach {
@@ -53,13 +56,13 @@ tasks.javadoc {
     options.encoding = "UTF-8"
     (options as StandardJavadocDocletOptions).apply {
         addBooleanOption("html5", true)
-        windowTitle("MOOC ${project.version} API")
-        docTitle("Minecraft Offline Online Converter ${project.version}")
+        windowTitle("MCYAS-IDConverter ${project.version} API")
+        docTitle("MCYAS-IDConverter ${project.version}")
     }
 }
 
 tasks.jar {
-    archiveBaseName.set("MinecraftOfflineOnlineConverter")
+    archiveBaseName.set("MCYAS-IDConverter")
     archiveVersion.set(project.version.toString())
     archiveClassifier.set("thin")
     manifest {
@@ -75,7 +78,7 @@ tasks.jar {
 }
 
 tasks.shadowJar {
-    archiveBaseName.set("MinecraftOfflineOnlineConverter")
+    archiveBaseName.set("MCYAS-IDConverter")
     archiveVersion.set(project.version.toString())
     archiveClassifier.set("")
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
