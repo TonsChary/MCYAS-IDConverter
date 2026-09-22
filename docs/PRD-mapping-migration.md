@@ -1,6 +1,6 @@
 # PRD: mapping.json 驱动的迁移流程（MOOC fork）
 
-状态：MappingTable、删除清单、转换路径简化、退出状态码已实现并实测（commit f11cc8d）；wrapper、CI 启动冒烟测试、认证服务器侧待做
+状态：MappingTable、删除清单、转换路径简化、退出状态码、CI 启动冒烟测试已实现并实测（commit f11cc8d、107c7ed）；wrapper、认证服务器侧待做
 范围：MOOC fork 本身的改动 + 管理员侧 wrapper（不含认证服务器侧实现）
 
 ---
@@ -160,7 +160,8 @@ wrapper 依赖可区分的退出状态，因此把现有的两处提前 `System.
 
 ### CI 与发布
 
-- 新增**启动冒烟测试**：在 JDK 17 / 21 / 25 的 matrix 上执行构件并断言退出码为 0、输出含版本号。这是本次改动中被实证必需的一条（见上文 `Main.main`）。
+- ✅ **启动冒烟测试**：新增 `smoke-test` job，在 JDK 17 / 21 / 25 的 matrix 上**下载已打包的构件**并断言它打印版本号。测的是真正会被发布的那份 jar，而不是重新构建的；为此 `build` 里新增了 jar 的 artifact 上传（`mcyas-idconverter-jar`），顺带让管理员可以直接从 CI 取构件。
+  - **已知局限：它不 gate pre-release。** 发布步骤在 `build` job 内部，而冒烟测试 `needs: build`，所以顺序是「发布 → 冒烟」。测试失败会让整个 CI 变红，但滚动 pre-release 已经发出。要严格 gate 需把 `Prepare/Publish pre-release` 抽成独立 job 并 `needs: [build, smoke-test]`。因为该 pre-release 每次 push 都会覆盖，判断这个代价可接受，暂未重构。
 - 保留现有测试与 javadoc 任务；构建 JDK 保持 26 不变。
 - 发布产物**钉在版本 tag** 上并附 SHA-256（或使用 GitHub artifact attestation），生产使用不提供 `latest`。
 
@@ -186,9 +187,9 @@ wrapper 依赖可区分的退出状态，因此把现有的两处提前 `System.
 2. ⬜ `SessionLockGate` / `BackupGate` —— 用 `@TempDir` 构造合成的服务端目录（`server.properties` + 世界目录，分别带/不带被持有的 `session.lock`；备份目录分别完整/缺失/为空），断言通过或被拒绝。合成目录的形状可直接复用端到端验证时用的那套 fixture。
 3. ⬜ `ArtifactVerifier` —— 已知内容对应已知摘要；摘要不匹配时失败。
 
-**⬜ CI 测试**：JDK 17/21/25 三档启动冒烟。
+**✅ CI 测试**：JDK 17/21/25 三档启动冒烟。已**反向验证它确实会失败**——用 JDK 26 编出 class file version 70 的字节码装进同名 jar，在 JDK 17 与 25 上均被拦下并报出 `UnsupportedClassVersionError`。一个不会失败的测试没有价值，所以这一条是必须做的。
 
-**已完成的验证（非单元测试）**：`./gradlew clean build` 全绿（单元测试 50 个），并用 JDK 17 直接运行构件跑了 11 个端到端场景——两个迁移方向、方向不一致、缺 `-uuidMap`、映射文件不存在、映射自洽性失败、存档过老、`-h`，以及 `-properties` / `-copy` / 两者组合这三种**不要求映射**的非转换操作。
+**已完成的验证（非单元测试）**：`./gradlew clean build` 全绿（单元测试 50 个），并用 JDK 17 直接运行构件跑了 11 个端到端场景——两个迁移方向、方向不一致、缺 `-uuidMap`、映射文件不存在、映射自洽性失败、存档过老、`-h`，以及 `-properties` / `-copy` / 两者组合这三种**不要求映射**的非转换操作。冒烟测试的失败路径另用 v70 字节码做了反向验证（见 Testing Decisions）。
 
 **明确不测**（依据本次决定）：MOOC 既有的转换内部逻辑（`ConverterV3` 与各转换插件）、认证服务器侧实现。
 
