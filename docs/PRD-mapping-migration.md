@@ -1,6 +1,6 @@
 # PRD: mapping.json 驱动的迁移流程（MOOC fork）
 
-状态：待实现
+状态：MappingTable、删除清单、转换路径简化、退出状态码已实现并实测（commit f11cc8d）；wrapper、CI 启动冒烟测试、认证服务器侧待做
 范围：MOOC fork 本身的改动 + 管理员侧 wrapper（不含认证服务器侧实现）
 
 ---
@@ -78,17 +78,17 @@
 
 ### 新增深层模块：`MappingTable`
 
-数据入口的唯一实现。职责：读取并校验 `mapping.json`，对外只暴露"方向 + 可直接灌入上下文的 from→to 映射表 + 用于预览的条目列表"。
+数据入口的唯一实现。职责：读取并校验 `mapping.json`，对外只暴露"方向 + 可直接灌入上下文的 from→to 映射表"。
 
 对外接口（简单且很少变动）：
 
-- `load(Path file)` → 解析并校验，失败即抛错
-- `direction()` → 文件声明的迁移方向
-- `uuidMap()` → 已按方向定向好的 `from → to` 映射
-- `entries()` → 预览用的条目列表（名字 + 两端 UUID）
-- `size()`
+- `load(Path file)` → 解析并校验，失败即抛 `MappingException`
+- `direction()` → 文件声明的迁移方向（复用 `ConversionTarget`）
+- `uuidMap()` → 已按方向定向好的、不可变的 `from → to` 映射
 
-它封装掉的全部复杂度：JSON 解析、schema 版本校验、**方向语义**（哪个字段是 `from`、哪个是 `to`）、**自洽性校验**（`offlineFromName(name) == offline`）、重复条目检测。调用方完全看不到这些。这个模块只依赖文件内容，可完全独立测试。
+它封装掉的全部复杂度：JSON 解析、schema 版本校验、**方向语义**（哪个字段是 `from`、哪个是 `to`）、**自洽性校验**（`offlineFromName(name) == offline`）、**方向相关的键唯一性**（见契约一节）。调用方完全看不到这些。这个模块只依赖文件内容，可完全独立测试（`MappingTableTest`，16 个用例）。
+
+**实现时去掉了原定的 `entries()` / `size()`**：它们是为 wrapper 的预览准备的，但 wrapper 作为独立程序读不了这个内部类，MOOC 自己也不需要条目列表。预览改为由 wrapper 直接读 `mapping.json` 完成。去掉之后既没有死代码，也避免把玩家名写进 `mooc_logs/`。
 
 **为什么这个模块值得深**：方向判断错一次就会把离线服的权限文件写成第三方 UUID。把方向语义关在一个纯函数式的模块里，是这次改动里唯一能防止该类事故的结构性手段。
 
@@ -109,6 +109,9 @@
 - `direction` 取值 `offline-to-thirdparty`（接入）或 `thirdparty-to-offline`（脱离）。
 - 两端 UUID 同时提供，因此**一份文件同时支持两个方向**；`direction` 只用于与命令行选择做一致性校验，不用于推导映射。
 - `offline` 字段必须等于 `offlineFromName(name)`，由 `MappingTable` 强制校验。若账号有历史改名，认证服务器必须**每个历史名字导出一条**，该校验才成立。
+- **键唯一性按方向区分**，由 `MappingTable` 强制：
+  - 接入方向（`offline-to-thirdparty`）以 `offline` 为键 → 同一账号的多个历史名字**允许**存在（同一个 v4 对应多个 v3）。
+  - 脱离方向（`thirdparty-to-offline`）以 `online` 为键 → **每个账号只能有一条，且必须是当前名字**。理由是离线 UUID 由名字派生，一个账号的历史名字无法对应到唯一的离线 UUID；出现重复会直接报错并提示原因。
 - UUID 允许带连字符或 32 位无连字符两种写法（沿用现有的宽松解析）。
 - 文件本身应附带 SHA-256 或签名，由 wrapper 校验（一次性令牌保护的是授权与保密，不覆盖完整性）。
 
@@ -118,6 +121,8 @@
 - 连带删除 `UsercacheFile` 及其测试（唯一调用方是 `PrefetchUsercache`）。
 - 删除 CLI 选项 `-customApiBaseUrl`、`-retrieveUUIDUrl`、`-retrieveNameUrl`，以及解析它们的逻辑。
 - 从插件注册表的 discovery 阶段移除 `PrefetchUsercache`。
+- `PluginContext.putUuidMapping` 在 HTTP 路径删除后失去全部调用方，一并删除；`uuidMap` 随之变为不可变（`Map.copyOf`）。
+- `PluginOrchestrator` 里"转换过程中发现新映射则重新改写根目录文件"的逻辑随之失效，一并删除。
 - 保留 `MinecraftUuids`：`offlineFromName` 改由 `MappingTable` 的自洽性校验使用，`parse` 由 mapping 解析使用，`dashless` 仍被 FTB Quests 插件使用。
 
 ### 转换路径的简化
@@ -139,6 +144,8 @@ wrapper 依赖可区分的退出状态，因此把现有的两处提前 `System.
 
 `PluginOrchestrator` 现有的"接入方向映射为空则中止"检查保留并加强——在 HTTP 路径删除后，它是防止空/错映射写入文件的最后一道闸门。
 
+这些码集中定义在 `me.pauleff.common.ExitCode`（其中 `2` 与 `4` 为 wrapper 预留），而不是散落在各处的字面量。
+
 ### Wrapper 模块
 
 以**子进程**方式调用 MOOC 构件，不做类库嵌入（换取 Java 版本无关与崩溃隔离）。
@@ -157,19 +164,31 @@ wrapper 依赖可区分的退出状态，因此把现有的两处提前 `System.
 - 保留现有测试与 javadoc 任务；构建 JDK 保持 26 不变。
 - 发布产物**钉在版本 tag** 上并附 SHA-256（或使用 GitHub artifact attestation），生产使用不提供 `latest`。
 
+### 实现记录：与本文的偏差（commit f11cc8d）
+
+1. **`MappingTable` 不暴露 `entries()` / `size()`**（理由见上）。
+2. **`-uuidMap` 对转换操作是强制的**：没提供就直接报错并退出 `3`，而不是静默跑完再报告 "Renamed 0 UUID file(s)"。这比原计划更强——原计划只把 `PluginOrchestrator` 的空映射检查当作最后闸门。
+3. **新增 `me.pauleff.common.ExitCode`** 集中定义退出码，而非在各处写字面量。
+4. **`direction` 的键唯一性按方向区分**（本文原先没写，实现时才明确，已补进契约一节）。
+5. **`PluginContext.putUuidMapping` 删除**，`uuidMap` 变为不可变；`PluginOrchestrator` 的"新映射重跑"逻辑随之删除。
+
+**保留未动**（按本次决定）：`-copy`、`-properties`、FTB Quests，以及 `UpdateProperties`——后者按转换方向写 `online-mode`，是接入流程的必需环节，不是可选功能。
+
 ## Testing Decisions
 
 **好测试的判据**：只验证外部可观察行为，不验证实现细节。例如 `MappingTable` 的测试喂入文件内容、断言解析结果或抛出的异常类型，而不去断言内部解析步骤或私有字段。
 
-**测试风格先例**（沿用现有约定）：JUnit 5，`@TempDir` 提供临时文件系统，`@Nested` 按被测方法分组，方法名用 `行为_when_条件`，fixture 用文本块，错误路径用 `assertThrows`，测试类放在与被测类相同的包路径下。先例见 `UsercacheFileTest`、`ServerPropertiesFileTest`。
+**测试风格先例**（沿用现有约定）：JUnit 5，`@TempDir` 提供临时文件系统，`@Nested` 按被测方法分组，方法名用 `行为_when_条件`，fixture 用文本块，错误路径用 `assertThrows`，测试类放在与被测类相同的包路径下。先例见 `ServerPropertiesFileTest`、`MappingTableTest`。
 
-**要写测试的模块**：
+**测试清单与状态**：
 
-1. `MappingTable` —— 两个方向各自的有效文件、方向字段非法、缺字段、JSON 格式错误、`offlineFromName(name)` 不匹配、重复条目、未知 schema 版本、两种 UUID 写法。全部以"输入文件内容 → 结果或异常"的形式。
-2. `SessionLockGate` / `BackupGate` —— 用 `@TempDir` 构造合成的服务端目录（`server.properties` + 世界目录，分别带/不带被持有的 `session.lock`；备份目录分别完整/缺失/为空），断言通过或被拒绝。合成目录的形状可直接复用本次对话中用于端到端验证的那套 fixture。
-3. `ArtifactVerifier` —— 已知内容对应已知摘要；摘要不匹配时失败。
+1. ✅ `MappingTable`（16 个用例，已实现）—— 两个方向各自的有效文件、同一账号下允许多个历史名字、方向字段非法、缺字段、JSON 格式错误、`offlineFromName(name)` 不匹配、两种重复键（含方向相关的报错差异）、未知 schema 版本、两种 UUID 写法。全部以"输入文件内容 → 结果或异常"的形式。
+2. ⬜ `SessionLockGate` / `BackupGate` —— 用 `@TempDir` 构造合成的服务端目录（`server.properties` + 世界目录，分别带/不带被持有的 `session.lock`；备份目录分别完整/缺失/为空），断言通过或被拒绝。合成目录的形状可直接复用端到端验证时用的那套 fixture。
+3. ⬜ `ArtifactVerifier` —— 已知内容对应已知摘要；摘要不匹配时失败。
 
-**要写的 CI 测试**：JDK 17/21/25 三档启动冒烟。
+**⬜ CI 测试**：JDK 17/21/25 三档启动冒烟。
+
+**已完成的验证（非单元测试）**：`./gradlew clean build` 全绿（单元测试 50 个），并用 JDK 17 直接运行构件跑了 11 个端到端场景——两个迁移方向、方向不一致、缺 `-uuidMap`、映射文件不存在、映射自洽性失败、存档过老、`-h`，以及 `-properties` / `-copy` / 两者组合这三种**不要求映射**的非转换操作。
 
 **明确不测**（依据本次决定）：MOOC 既有的转换内部逻辑（`ConverterV3` 与各转换插件）、认证服务器侧实现。
 
@@ -189,3 +208,5 @@ wrapper 依赖可区分的退出状态，因此把现有的两处提前 `System.
 - **根目录名单文件的改写是"全表扫描"式**：MOOC 对 `ops.json` 等 6 个文件，逐条把映射表里的 `from → to` 做字符串替换。使用全量花名册映射时，复杂度是"条目数 × 文件大小"。对现实规模没问题，但如果花名册达到数万条，值得重新评估。
 - **名字历史是数据侧的前置条件**：离线服上玩家改一次名就换一次 UUID，因此同一个人的旧数据会挂在旧名字派生的 UUID 下。认证服务器必须导出历史名字，否则这些旧数据永远无法迁移——这是流程能否成功的关键业务约束，不是技术细节。
 - **本次改动的一个意外收益**：删除 HTTP 子系统后，原先"如何让 MOOC 支持 Yggdrasil 的 POST 批量查询"这个问题彻底消失了，因为工具不再需要查询任何东西。
+- **没有 dry-run，预览只能在 wrapper 侧做**：`ConverterV3.convert` 直接改名写盘并返回 `void`，构件不会报告"将要改什么"。管理员看到的预览来自 wrapper 直接读 `mapping.json`——这正是映射表方案相对实时 API 的优势所在。
+- **非转换操作不要求映射**：`-copy`、`-properties` 单独或组合使用时走空映射表，实测均 exit 0。后续再动 `ParsedArguments` 或 `PluginContext` 的构造时，务必回归这一点。
